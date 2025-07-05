@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
@@ -200,6 +201,7 @@ def transform_raw_data(input_file: str) -> str:
     validation_report_file_path = (
         f"data/validation/{VALIDATION_REPORT_FILENAME}_{timestamp}.json"
     )
+    os.makedirs(os.path.dirname(validation_report_file_path), exist_ok=True)
 
     logger.info(
         f"Validation finished. Got valid: {len(valid_records)} and invalid: {len(invalid_records)} ads"
@@ -219,6 +221,8 @@ def transform_raw_data(input_file: str) -> str:
     transformed_data_file_path = (
         f"data/transformed/{TRANSFORMED_DATA_FILENAME}_{timestamp}.parquet"
     )
+
+    os.makedirs(os.path.dirname(transformed_data_file_path), exist_ok=True)
     df_cleaned_3.to_parquet(transformed_data_file_path, index=False)
 
     logger.info(f"Duplicates removed, left {len(df_cleaned_3)} ads")

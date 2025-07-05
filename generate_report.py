@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -51,6 +52,8 @@ def generate_report(input_file: str) -> str:
     now = datetime.now()
     timestamp = now.strftime("%Y%m%d_%H%M%S")
     report_file_path = f"data/reports/{REPORT_FILENAME}_{timestamp}.csv"
+
+    os.makedirs(os.path.dirname(report_file_path), exist_ok=True)
     top_report.to_csv(report_file_path, index=False)
 
     return report_file_path

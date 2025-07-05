@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import time
 from datetime import datetime
@@ -188,9 +189,12 @@ def collect_raw_data(page_url_str: str) -> str:
 
                 now = datetime.now()
                 timestamp = now.strftime("%Y%m%d_%H%M%S")
+
                 raw_data_file_path = (
                     f"data/raw/{RAW_DATA_JSON_FILENAME}_{timestamp}.json"
                 )
+
+                os.makedirs(os.path.dirname(raw_data_file_path), exist_ok=True)
 
                 with open(raw_data_file_path, "w", encoding="utf-8") as f:
                     json.dump(ads_data, f, indent=2)
