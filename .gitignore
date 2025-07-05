@@ -1,0 +1,15 @@
+logs/*
+
+data/raw/*
+data/reports/*
+data/transformed/*
+data/validation/*
+
+artifacts/
+venv/
+
+__pycache__/
+*.py[cod]
+*.pyo
+
+.DS_Store
