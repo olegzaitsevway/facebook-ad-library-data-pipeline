@@ -9,6 +9,7 @@ from langdetect import detect
 from pydantic import BaseModel, field_validator, model_validator
 
 from const import TRANSFORMED_DATA_FILENAME, VALIDATION_REPORT_FILENAME
+from utils.base import add_timestamp_to_filename
 from utils.logging import setup_logger
 
 logger = setup_logger(__file__)
@@ -162,7 +163,9 @@ def parse_ad_group(ad_group: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return parsed_ads
 
 
-def validate_and_clean_data(parsed_ads: List[Dict[str, Any]]):
+def validate_data(
+    parsed_ads: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     valid_records = []
     invalid_records = []
 
@@ -176,16 +179,19 @@ def validate_and_clean_data(parsed_ads: List[Dict[str, Any]]):
     return valid_records, invalid_records
 
 
+def clean_data(ads: List[Dict[str, Any]]) -> pd.DataFrame:
+    df = pd.DataFrame(ads)
+
+    df_cleaned_1 = df.drop_duplicates(subset=["ad_id"], keep="first")
+    df_cleaned_2 = df_cleaned_1.drop_duplicates(subset=["ad_group_id"], keep="first")
+    df_cleaned_3 = df_cleaned_2.drop_duplicates(subset=["ad_text"], keep="first")
+
+    return df_cleaned_3
+
+
 def transform_raw_data(input_file: str) -> str:
-    try:
-        with open(input_file) as f:
-            raw_ads = json.load(f)
-    except FileNotFoundError:
-        logger.error(f"Input file not found: {input_file}")
-        raise
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in input file: {e}")
-        raise
+    with open(input_file) as f:
+        raw_ads = json.load(f)
 
     parsed_ads = []
     for ad_group in raw_ads:
@@ -194,37 +200,36 @@ def transform_raw_data(input_file: str) -> str:
 
     logger.info(f"Parsed {len(parsed_ads)} ads from {len(raw_ads)} ad groups")
 
-    valid_records, invalid_records = validate_and_clean_data(parsed_ads)
+    valid_records, invalid_records = validate_data(parsed_ads)
 
-    now = datetime.now()
-    timestamp = now.strftime("%Y%m%d_%H%M%S")
-    validation_report_file_path = (
-        f"data/validation/{VALIDATION_REPORT_FILENAME}_{timestamp}.json"
+    val_report__filename_w_timestamp = add_timestamp_to_filename(
+        VALIDATION_REPORT_FILENAME
     )
+    validation_report_file_path = (
+        f"data/validation/{val_report__filename_w_timestamp}.json"
+    )
+
     os.makedirs(os.path.dirname(validation_report_file_path), exist_ok=True)
+    with open(validation_report_file_path, "w", encoding="utf-8") as f:
+        json.dump(invalid_records, f, indent=2)
 
     logger.info(
         f"Validation finished. Got valid: {len(valid_records)} and invalid: {len(invalid_records)} ads"
     )
     logger.info(f"Report could be found here: {validation_report_file_path}")
 
-    with open(validation_report_file_path, "w", encoding="utf-8") as f:
-        json.dump(invalid_records, f, indent=2)
+    cleaned_dataframe = clean_data(valid_records)
 
-    df = pd.DataFrame(valid_records)
-
-    #
-    df_cleaned_1 = df.drop_duplicates(subset=["ad_id"], keep="first")
-    df_cleaned_2 = df_cleaned_1.drop_duplicates(subset=["ad_group_id"], keep="first")
-    df_cleaned_3 = df_cleaned_2.drop_duplicates(subset=["ad_text"], keep="first")
-
+    transformed_data_filename_w_timestamp = add_timestamp_to_filename(
+        TRANSFORMED_DATA_FILENAME
+    )
     transformed_data_file_path = (
-        f"data/transformed/{TRANSFORMED_DATA_FILENAME}_{timestamp}.parquet"
+        f"data/transformed/{transformed_data_filename_w_timestamp}.parquet"
     )
 
     os.makedirs(os.path.dirname(transformed_data_file_path), exist_ok=True)
-    df_cleaned_3.to_parquet(transformed_data_file_path, index=False)
+    cleaned_dataframe.to_parquet(transformed_data_file_path, index=False)
 
-    logger.info(f"Duplicates removed, left {len(df_cleaned_3)} ads")
+    logger.info(f"Duplicates were removed, left {len(cleaned_dataframe)} ads")
 
     return transformed_data_file_path

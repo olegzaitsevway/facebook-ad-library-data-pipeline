@@ -38,7 +38,7 @@ The report will include fields like:
 - `ad_lang_code` (language detection)
 
 Saved to:
-`data/reports/report\_<timestamp>.csv`
+`data/reports/report_<timestamp>.csv`
 
 # Rank performance logic
 
@@ -51,3 +51,8 @@ It’s a reliable proxy the Facebook Ad Library doesn’t expose deeper performa
 Focusing on active ads adds relevance by filtering only ads that are currently live, the report highlights the most recent and potentially impactful creatives being used right now.
 
 This approach ensures the report prioritizes ads that are not only sustained over time, but also still in use, giving you insights into what strategies are currently working.
+
+# Possible improvements
+
+- Dropping dups logic: now it's not perfect, probably I could also extract image, video info and check if content is the same, also text similarity? maybe if some percent looks the same we could mark it as duplicate etc.
+- Think about ranking approach, now we have only 1 factor which is fine but also not perfect.
