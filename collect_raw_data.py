@@ -48,9 +48,10 @@ def get_ad_search_data(json_data):
 
 def find_key(d, target_key):
     if isinstance(d, dict):
-        for key, value in d.items():
-            if key == target_key:
-                return value
+        if target_key in d:
+            return d[target_key]
+
+        for value in d.values():
             result = find_key(value, target_key)
             if result is not None:
                 return result
