@@ -1,9 +1,10 @@
+import argparse
 import json
 import os
-import re
 import time
 from typing import Any, Dict, List, Optional
 
+import jsonfinder  # type: ignore
 from playwright.sync_api import Page, TimeoutError, sync_playwright
 
 from const import RAW_DATA_JSON_FILENAME
@@ -46,44 +47,41 @@ def get_ad_search_data(json_data):
         return None
 
 
-def find_key(d, target_key):
-    if isinstance(d, dict):
-        if target_key in d:
-            return d[target_key]
+def get_nested_value_by_key(data, key):
+    if isinstance(data, dict):
+        if key in data:
+            return data[key]
 
-        for value in d.values():
-            result = find_key(value, target_key)
+        for value in data.values():
+            result = get_nested_value_by_key(value, key)
             if result is not None:
                 return result
-    elif isinstance(d, list):
-        for item in d:
-            result = find_key(item, target_key)
+    elif isinstance(data, list):
+        for item in data:
+            result = get_nested_value_by_key(item, key)
             if result is not None:
                 return result
     return None
 
 
 def find_init_data(page) -> Optional[Dict[str, Any]]:
-    script_tags = page.query_selector_all("script")
+    json_script_tags = page.query_selector_all('script[type="application/json"]')
 
-    ad_library_main = None
+    for script in json_script_tags:
+        script_string = script.inner_text()
 
-    for script in script_tags:
-        try:
-            content = script.inner_text()
-            if INIT_DATA_KEY in content:
-                json_text = content.strip()
-                match = re.search(rf'{{.*"{INIT_DATA_KEY}".*}}', json_text, re.DOTALL)
-                if match:
-                    json_data = json.loads(match.group())
-                    ad_library_main = find_key(json_data, INIT_DATA_KEY)
-                    if ad_library_main:
-                        logger.info(f"Found {INIT_DATA_KEY}")
-                        break
-        except Exception:
-            continue
+        if INIT_DATA_KEY in script_string:
+            for _, _, obj in jsonfinder.jsonfinder(script_string):
+                if obj is None:
+                    continue
 
-    return ad_library_main
+                init_data = get_nested_value_by_key(obj, INIT_DATA_KEY)
+
+                if init_data:
+                    logger.info(f"Found {INIT_DATA_KEY}")
+                    return init_data
+
+    return None
 
 
 class InitDataNotFoundException(Exception):
@@ -103,7 +101,7 @@ def parse_response_data(edges: List[Dict[str, Any]]) -> List[List[Dict[str, Any]
     ]
 
 
-def get_parsed_init_data(page: Page) -> List[Dict[str, Any]]:
+def get_parsed_init_data(page: Page) -> List[List[Dict[str, Any]]]:
     init_data = find_init_data(page)
 
     if not init_data:
@@ -116,7 +114,7 @@ def get_parsed_init_data(page: Page) -> List[Dict[str, Any]]:
 
 def find_init_data_with_retries(
     page: Page, page_url_str: str
-) -> Optional[List[Dict[str, Any]]]:
+) -> Optional[List[List[Dict[str, Any]]]]:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             logger.info(f"Attempt {attempt}: Navigating to page...")
@@ -125,7 +123,7 @@ def find_init_data_with_retries(
             break
         except TimeoutError:
             logger.error(f"Timeout navigating to {page_url_str}")
-            return
+            return None
         except InitDataNotFoundException as e:
             logger.warning(f"Attempt {attempt}: Init data not found: {e}")
             if attempt < MAX_RETRIES:
@@ -134,10 +132,10 @@ def find_init_data_with_retries(
                 continue
             else:
                 logger.error("Max retries reached. Giving up.")
-                return
+                return None
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
-            return
+            return None
 
     return parsed_init_data
 
@@ -203,3 +201,13 @@ def collect_raw_data(page_url_str: str) -> str:
                     json.dump(raw_ads_data, f, indent=2)
 
                 return raw_data_file_path
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Collect raw data from Facebook Ad Library."
+    )
+    parser.add_argument("url", type=str, help="Facebook Ad Library URL to scrape")
+
+    args = parser.parse_args()
+    collect_raw_data(args.url)
